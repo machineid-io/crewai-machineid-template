@@ -102,16 +102,21 @@ def build_crewai_objects() -> Crew:
     - One crew
     """
 
-    # Use OpenAI via CrewAI's LLM wrapper.
+    # Uses OpenAI via CrewAI's LLM wrapper.
     # Requires OPENAI_API_KEY in your environment.
     llm = LLM(model="gpt-4o-mini")
 
     planning_agent = Agent(
-        role="Planning Agent",
-        goal="Create short, safe, actionable plans.",
+        role="CrewAI Worker",
+        goal=(
+            "Create short, practical 3-step plans that show developers how to keep "
+            "their CrewAI agents under control using MachineID.io."
+        ),
         backstory=(
-            "You are a helpful AI assistant that designs small, practical plans "
-            "for developers running automated agents and workers."
+            "You help developers run CrewAI agents safely. MachineID.io sits in front "
+            "of their agents as a device-level gatekeeper: each agent registers on "
+            "startup and validates before doing work, so they can avoid runaway "
+            "spawning and keep fleets predictable."
         ),
         llm=llm,
         allow_delegation=False,
@@ -119,12 +124,20 @@ def build_crewai_objects() -> Crew:
 
     task = Task(
         description=(
-            "Generate a short, 3-step plan for how a developer could safely use "
-            "CrewAI agents together with MachineID.io to avoid runaway costs."
+            "Generate a concise 3-step plan for how a developer can use MachineID.io "
+            "together with CrewAI agents to keep scaling under control. Focus on:\n"
+            "- Registering each agent (deviceId) when it starts\n"
+            "- Validating before doing work or starting a major task\n"
+            "- Treating a failed validation or limit_reached status as the hard stop "
+            "to avoid spawning more agents.\n\n"
+            "Do not mention dashboards, analytics, or built-in spend monitoring. "
+            "Explain MachineID.io as a device-level limiter and gate, not an analytics tool."
         ),
         agent=planning_agent,
         expected_output=(
-            "A concise markdown list with exactly 3 bullet points, each 1–2 sentences."
+            "A short markdown list with exactly 3 numbered steps. Each step should be "
+            "1–2 sentences, practical, and focused on using register + validate as "
+            "control points around CrewAI agents."
         ),
     )
 
