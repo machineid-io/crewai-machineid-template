@@ -15,16 +15,16 @@ The free org key supports **3 devices**, with higher limits available on paid pl
   - Uses a default `deviceId` of `crewai-agent-01` (override with `MACHINEID_DEVICE_ID`)  
   - Calls **POST** `/api/v1/devices/register` with `x-org-key` and a `deviceId`  
   - Calls **GET** `/api/v1/devices/validate` before running the Crew  
-  - Prints clear status fields:
+  - Prints clear status:
     - `ok` / `exists` / `restored`  
     - `limit_reached` (free tier = 3 devices)  
-    - `allowed` / `not allowed`  
+    - `allowed` / `not allowed`
 
 - A minimal `requirements.txt` using only:
   - `crewai`  
   - `requests`
 
-This mirrors the same register + validate flow as the `machineid-python-starter` but wired directly into a real CrewAI agent and task.
+This mirrors the same register + validate pattern used in the Python and LangChain templates, but wired directly into a real CrewAI agent and task.
 
 ---
 
@@ -95,11 +95,10 @@ You will see:
    - `restored` → previously revoked device restored  
    - `limit_reached` → free tier cap hit  
 4. Calls `/api/v1/devices/validate`:
-   - `allowed: true` → CrewAI agent is permitted to run  
-   - `allowed: false` → CrewAI agent should stop or pause  
+   - `allowed: true` → CrewAI agent should run  
+   - `allowed: false` → CrewAI agent should exit or pause  
 
-The script only runs `crew.kickoff()` when the device is **allowed**.  
-This is the exact control cycle used by real production agent fleets.
+This ensures each worker checks in before doing work and that scaling stays fully controlled.
 
 ---
 
@@ -116,17 +115,26 @@ To integrate MachineID.io:
 
 This prevents accidental scaling, infinite worker spawning, and runaway cloud costs.
 
+**Drop the same register/validate block into any Crew, Task, or background worker.**  
+This is all you need to enforce simple device limits across your entire CrewAI fleet.
+
 ---
 
-## Advanced (optional): create orgs programmatically
+## Optional: fully automated org creation
 
-Most developers generate a free org key from the dashboard.
+Most users generate a free org key from the dashboard.
 
-Automated backends or meta-agents may instead call:
+If you are building meta-agents or automated back-ends that need to bootstrap from zero, you can create an org + key programmatically:
 
-**POST** `/api/v1/org/create`
+```bash
+curl -X POST https://machineid.io/api/v1/org/create \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
 
-This returns an `orgApiKey` identical to dashboard-created keys.
+The response contains a ready-to-use `orgApiKey`.
+
+(This pattern will get its own dedicated template/repo in the future.)
 
 ---
 
