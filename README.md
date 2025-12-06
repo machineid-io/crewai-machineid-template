@@ -6,9 +6,21 @@ A minimal CrewAI starter that shows how to wrap your agents with MachineID.io de
 Use this template to prevent runaway fleets, enforce hard device limits, and ensure every CrewAI worker checks in before doing work.  
 The free org key supports **3 devices**, with higher limits available on paid plans.
 
-> **⚠️ Python Version Note**  
-> CrewAI installs cleanly on **Python 3.11**.  
-> If your default system Python is 3.12 or 3.13, create a Python 3.11 venv to avoid dependency issues (tiktoken / PyO3 constraints).
+---
+
+## ⚠️ Python version requirement (important)
+
+CrewAI installs most reliably on **Python 3.11**.
+
+Python **3.12 / 3.13 / 3.14** may fail due to ecosystem-level constraints (PyO3, tokenizers, and transitive dependencies).
+
+**Recommended installation:**
+
+```bash
+python3.11 -m venv venv311
+source venv311/bin/activate
+pip install -r requirements.txt
+```
 
 ---
 
@@ -46,8 +58,8 @@ cd crewai-machineid-template
 ### 2. Install dependencies (Python 3.11 recommended)
 
 ```bash
-python3.11 -m venv venv
-source venv/bin/activate
+python3.11 -m venv venv311
+source venv311/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -72,7 +84,7 @@ export MACHINEID_DEVICE_ID=crewai-agent-01   # optional override
 **One-liner (run immediately):**
 
 ```bash
-MACHINEID_ORG_KEY=org_xxx OPENAI_API_KEY=sk_xxx python3.11 crewai_agent.py
+MACHINEID_ORG_KEY=org_xxx OPENAI_API_KEY=sk_xxx python crewai_agent.py
 ```
 
 ---
@@ -80,7 +92,7 @@ MACHINEID_ORG_KEY=org_xxx OPENAI_API_KEY=sk_xxx python3.11 crewai_agent.py
 ### 5. Run the starter
 
 ```bash
-python3.11 crewai_agent.py
+python crewai_agent.py
 ```
 
 You will see:
@@ -176,4 +188,3 @@ API → https://machineid.io/api
 - When you upgrade or change plans, limits update immediately — your CrewAI workers do **not** need new code.
 
 MIT licensed · Built by MachineID.io
-
