@@ -6,6 +6,10 @@ A minimal CrewAI starter that shows how to wrap your agents with MachineID.io de
 Use this template to prevent runaway fleets, enforce hard device limits, and ensure every CrewAI worker checks in before doing work.  
 The free org key supports **3 devices**, with higher limits available on paid plans.
 
+> **⚠️ Python Version Note**  
+> CrewAI installs cleanly on **Python 3.11**.  
+> If your default system Python is 3.12 or 3.13, create a Python 3.11 venv to avoid dependency issues (tiktoken / PyO3 constraints).
+
 ---
 
 ## What this repo gives you
@@ -39,9 +43,11 @@ cd crewai-machineid-template
 
 ---
 
-### 2. Install dependencies
+### 2. Install dependencies (Python 3.11 recommended)
 
 ```bash
+python3.11 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
@@ -66,7 +72,7 @@ export MACHINEID_DEVICE_ID=crewai-agent-01   # optional override
 **One-liner (run immediately):**
 
 ```bash
-MACHINEID_ORG_KEY=org_xxx OPENAI_API_KEY=sk_xxx python crewai_agent.py
+MACHINEID_ORG_KEY=org_xxx OPENAI_API_KEY=sk_xxx python3.11 crewai_agent.py
 ```
 
 ---
@@ -74,7 +80,7 @@ MACHINEID_ORG_KEY=org_xxx OPENAI_API_KEY=sk_xxx python crewai_agent.py
 ### 5. Run the starter
 
 ```bash
-python crewai_agent.py
+python3.11 crewai_agent.py
 ```
 
 You will see:
