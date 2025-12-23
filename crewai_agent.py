@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import os
 import sys
 import time
@@ -8,16 +10,20 @@ import requests
 from crewai import Agent, Task, Crew, Process
 from crewai.llm import LLM
 
-BASE_URL = "https://machineid.io"
+BASE_URL = os.getenv("MACHINEID_BASE_URL", "https://machineid.io").rstrip("/")
 REGISTER_URL = f"{BASE_URL}/api/v1/devices/register"
 VALIDATE_URL = f"{BASE_URL}/api/v1/devices/validate"
 
+
+# -------------------------
+# MachineID helpers
+# -------------------------
 
 def get_org_key() -> str:
     org_key = os.getenv("MACHINEID_ORG_KEY")
     if not org_key:
         raise RuntimeError(
-            "Missing MACHINEID_ORG_KEY. Set it in your environment or via a .env file.\n"
+            "Missing MACHINEID_ORG_KEY.\n"
             "Example:\n"
             "  export MACHINEID_ORG_KEY=org_your_key_here\n"
         )
@@ -25,100 +31,80 @@ def get_org_key() -> str:
 
 
 def get_device_id() -> str:
-    return os.getenv("MACHINEID_DEVICE_ID", "crewai-agent-01")
+    return os.getenv("MACHINEID_DEVICE_ID", "crewai:agent-01").strip() or "crewai:agent-01"
 
 
-def register_device(org_key: str, device_id: str) -> Dict[str, Any]:
-    headers = {
-        "x-org-key": org_key,
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "deviceId": device_id,
-    }
-
-    print(f"→ Registering device '{device_id}' via {REGISTER_URL} ...")
-    resp = requests.post(REGISTER_URL, headers=headers, json=payload, timeout=10)
+def post_json(url: str, headers: Dict[str, str], payload: Dict[str, Any], timeout_s: int = 10) -> Dict[str, Any]:
+    resp = requests.post(url, headers=headers, json=payload, timeout=timeout_s)
     try:
         data = resp.json()
     except Exception:
-        print("❌ Could not parse JSON from register response.")
-        print("Status code:", resp.status_code)
-        print("Body:", resp.text)
+        print("❌ Non-JSON response")
+        print("HTTP:", resp.status_code)
+        print(resp.text)
         raise
 
-    status = data.get("status")
-    handler = data.get("handler")
-    plan_tier = data.get("planTier")
-    limit = data.get("limit")
-    devices_used = data.get("devicesUsed")
-    remaining = data.get("remaining")
+    if resp.status_code >= 400:
+        return {
+            "status": "error",
+            "http": resp.status_code,
+            "body": data,
+        }
 
-    print(f"✔ register response: status={status}, handler={handler}")
-    print("Registration summary:")
-    if plan_tier is not None:
-        print("  planTier    :", plan_tier)
-    if limit is not None:
-        print("  limit       :", limit)
-    if devices_used is not None:
-        print("  devicesUsed :", devices_used)
-    if remaining is not None:
-        print("  remaining   :", remaining)
-    print()
+    return data
+
+
+def register_device(org_key: str, device_id: str) -> Dict[str, Any]:
+    print(f"→ Registering device '{device_id}'")
+    data = post_json(
+        REGISTER_URL,
+        headers={"x-org-key": org_key, "Content-Type": "application/json"},
+        payload={"deviceId": device_id},
+    )
+
+    status = data.get("status")
+    print(f"✔ register status={status}")
+
+    if status not in ("ok", "exists"):
+        print("🚫 Register failed:", data)
+        sys.exit(1)
 
     return data
 
 
 def validate_device(org_key: str, device_id: str) -> Dict[str, Any]:
-    headers = {
-        "x-org-key": org_key,
-    }
-    params = {
-        "deviceId": device_id,
-    }
+    print(f"→ Validating device '{device_id}' (POST canonical)")
+    data = post_json(
+        VALIDATE_URL,
+        headers={"x-org-key": org_key, "Content-Type": "application/json"},
+        payload={"deviceId": device_id},
+    )
 
-    print(f"→ Validating device '{device_id}' via {VALIDATE_URL} ...")
-    resp = requests.get(VALIDATE_URL, headers=headers, params=params, timeout=10)
-    try:
-        data = resp.json()
-    except Exception:
-        print("❌ Could not parse JSON from validate response.")
-        print("Status code:", resp.status_code)
-        print("Body:", resp.text)
-        raise
-
-    status = data.get("status")
-    handler = data.get("handler")
     allowed = bool(data.get("allowed", False))
-    reason = data.get("reason", "unknown")
-    print(f"✔ validate response: status={status}, handler={handler}, allowed={allowed}, reason={reason}")
-    print()
+    code = data.get("code")
+    request_id = data.get("request_id")
+
+    print(f"✔ decision allowed={allowed} code={code} request_id={request_id}")
     return data
 
 
-def build_crewai_objects() -> Crew:
-    """
-    Build a minimal CrewAI setup:
-    - One agent
-    - One task
-    - One crew
-    """
+# -------------------------
+# CrewAI demo
+# -------------------------
 
-    # Uses OpenAI via CrewAI's LLM wrapper.
-    # Requires OPENAI_API_KEY in your environment.
+def build_crewai_objects() -> Crew:
     llm = LLM(model="gpt-4o-mini")
 
-    planning_agent = Agent(
+    agent = Agent(
         role="CrewAI Worker",
         goal=(
             "Create short, practical 3-step plans that show developers how to keep "
-            "their CrewAI agents under control using MachineID.io."
+            "their CrewAI agents under control using MachineID."
         ),
         backstory=(
-            "You help developers run CrewAI agents safely. MachineID.io sits in front "
-            "of their agents as a device-level gatekeeper: each agent registers on "
-            "startup and validates before doing work, so they can avoid runaway "
-            "spawning and keep fleets predictable."
+            "You help developers run CrewAI agents safely. MachineID acts as an "
+            "external device-level control plane: agents register on startup and "
+            "validate before doing work so runaway execution is impossible."
         ),
         llm=llm,
         allow_delegation=False,
@@ -126,82 +112,59 @@ def build_crewai_objects() -> Crew:
 
     task = Task(
         description=(
-            "Generate a concise 3-step plan for how a developer can use MachineID.io "
-            "together with CrewAI agents to keep scaling under control. Focus on:\n"
-            "- Registering each agent (deviceId) when it starts\n"
-            "- Validating before doing work or starting a major task\n"
-            "- Treating a failed validation or limit_reached status as the hard stop "
-            "to avoid spawning more agents.\n\n"
-            "Do not mention dashboards, analytics, or built-in spend monitoring. "
-            "Explain MachineID.io as a device-level limiter and gate, not an analytics tool."
+            "Write a concise 3-step plan explaining how to use MachineID with CrewAI:\n"
+            "- Register each agent on startup\n"
+            "- Validate before doing work\n"
+            "- Treat a failed validation as a hard stop\n"
         ),
-        agent=planning_agent,
+        agent=agent,
         expected_output=(
-            "A short markdown list with exactly 3 numbered steps. Each step should be "
-            "1–2 sentences, practical, and focused on using register + validate as "
-            "control points around CrewAI agents."
+            "Exactly 3 numbered steps, 1–2 sentences each, focused on register + "
+            "validate as enforcement boundaries."
         ),
     )
 
-    crew = Crew(
-        agents=[planning_agent],
+    return Crew(
+        agents=[agent],
         tasks=[task],
         process=Process.sequential,
     )
-    return crew
 
+
+# -------------------------
+# Main
+# -------------------------
 
 def main() -> None:
-    # 1) Load org key and device ID
     org_key = get_org_key()
     device_id = get_device_id()
 
-    print("✔ MACHINEID_ORG_KEY loaded:", org_key[:12] + "...")
-    print("Using deviceId:", device_id)
+    print("✔ MACHINEID_ORG_KEY loaded:", org_key[:12] + "…")
+    print("Using base_url:", BASE_URL)
+    print("Using device_id:", device_id)
     print()
 
-    # 2) Register device with MachineID.io
-    reg = register_device(org_key, device_id)
-    reg_status = reg.get("status")
+    # 1) Register (idempotent)
+    register_device(org_key, device_id)
 
-    if reg_status == "limit_reached":
-        print("🚫 Plan limit reached on register. CrewAI run will NOT start.")
-        sys.exit(0)
-
-    # Optional small pause to mirror real startup behavior
-    print("Waiting 2 seconds before validating...")
-    time.sleep(2)
-
-    # 3) Validate device before kicking off the Crew
+    # 2) Validate (hard gate)
+    time.sleep(1)
     val = validate_device(org_key, device_id)
-    allowed = bool(val.get("allowed", False))
-    reason = val.get("reason", "unknown")
 
-    print("Validation summary:")
-    print("  allowed :", allowed)
-    print("  reason  :", reason)
-    print()
-
-    if not allowed:
-        print("🚫 Device is NOT allowed. CrewAI run will NOT start.")
+    if not val.get("allowed", False):
+        print("🚫 Execution denied. Crew will NOT start.")
         sys.exit(0)
 
-    print("✅ Device is allowed. Building CrewAI objects and starting the run...")
+    print("✅ Execution allowed. Starting CrewAI run.")
     print()
 
-    # 4) Build and run the CrewAI workflow
     crew = build_crewai_objects()
-
-    try:
-        result = crew.kickoff()
-    except Exception as e:
-        print("❌ Error while running CrewAI crew:", str(e))
-        sys.exit(1)
+    result = crew.kickoff()
 
     print("✔ CrewAI result:")
     print(result)
     print()
-    print("Done. crewai_agent.py completed successfully.")
+    print("Done.")
 
 
 if __name__ == "__main__":
